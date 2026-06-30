@@ -37,6 +37,7 @@ npm run test:browser
 2. `main` ブランチへ push すると `.github/workflows/deploy.yml` が自動デプロイします
 3. 公開 URL: https://nozutax.github.io/HTMLeditApp/
 
+## 技術スタック
 
 - Vite + React + TypeScript
 - Tailwind CSS
