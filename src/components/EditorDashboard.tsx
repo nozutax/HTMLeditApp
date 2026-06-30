@@ -87,16 +87,16 @@ export function EditorDashboard({
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        <DashSection title="ファイル">
-          <DashButton title="別のファイルを開く" onClick={onOpenNew} className="w-full">
-            ファイルを開く
-          </DashButton>
+        <DashSection title="完了">
           <DashButton
             title="HTMLをダウンロード"
             onClick={onDownload}
             className="w-full border-blue-200 bg-blue-600 text-white hover:border-blue-400 hover:bg-blue-700"
           >
             ダウンロード
+          </DashButton>
+          <DashButton title="別のHTMLを開く" onClick={onOpenNew} className="w-full">
+            別のHTMLを開く
           </DashButton>
         </DashSection>
 
@@ -161,7 +161,7 @@ export function EditorDashboard({
 
       <div className="border-t border-slate-200 bg-white px-4 py-3">
         <p className="text-xs text-slate-400">
-          左の画面をクリックして編集し、完了したらダウンロードしてください。
+          編集内容はブラウザに保存されません。タブを閉じると消えます。
         </p>
       </div>
     </aside>

@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>配置図作成ツール (色設定・並び順調整版)</title>
+    <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+    <style>
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; display: flex; flex-direction: column; align-items: center; background: #f4f7f6; margin: 0; padding: 20px; cursor: none; }
+        .toolbar { background: #fff; padding: 15px; margin-bottom: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); display: flex; gap: 10px; flex-wrap: wrap; align-items: center; border: 1px solid #ddd; cursor: default; }
+        .group { display: flex; align-items: center; gap: 8px; border-right: 1px solid #eee; padding-right: 12px; margin-right: 5px; }
+        .group:last-child { border-right: none; }
+        
+        #canvas-container { 
+            position: relative; width: 708px; height: 681px; border: 2px solid #333; background: white; 
+            box-shadow: 0 0 20px rgba(0,0,0,0.1); overflow: visible;
+        }
+        canvas { position: absolute; top: 0; left: 0; width: 708px; height: 681px; }
+        
+        #custom-cursor {
+            position: fixed; width: 30px; height: 30px; pointer-events: none; z-index: 9999;
+            mix-blend-mode: difference; transform: translate(-50%, -50%);
+        }
+        #custom-cursor::before, #custom-cursor::after { content: ''; position: absolute; background: white; }
+        #custom-cursor::before { top: 14px; left: 0; width: 30px; height: 2px; }
+        #custom-cursor::after { left: 14px; top: 0; width: 2px; height: 30px; }
+
+        button { padding: 10px 15px; cursor: pointer; border: 1px solid #ddd; background: #fff; border-radius: 6px; font-size: 14px; transition: 0.2s; }
+        button:hover { background: #f9f9f9; }
+        button.active { background: #007bff; color: white; border-color: #0056b3; }
+        .color-btn { width: 32px; height: 32px; border-radius: 50%; border: 2px solid #fff; cursor: pointer; box-shadow: 0 0 4px rgba(0,0,0,0.2); }
+        .color-btn.active { outline: 3px solid #007bff; }
+        .download-btn { background: #28a745 !important; color: white !important; font-weight: bold; border: none !important; padding: 10px 25px !important; }
+
+        #multi-modal {
+            display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: white; padding: 25px; border-radius: 12px; box-shadow: 0 5px 30px rgba(0,0,0,0.4); z-index: 1000; cursor: default;
+        }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.3); z-index: 999; }
+        .hint-bar { font-size: 12px; color: #666; margin-top: 5px; }
+    </style>
+</head>
+<body onmousemove="handleGlobalMouseMove(event)" onmousedown="handleGlobalMouseDown(event)" onmouseup="handleGlobalMouseUp(event)">
+
+    <div id="custom-cursor"></div>
+
+    <h2 style="cursor: default;">配置図作成ツール</h2>
+
+    <div class="toolbar">
+        <div class="group">
+            <button class="color-btn active" id="col-black" style="background: #000;" onclick="setColor('#000000')"></button>
+            <button class="color-btn" id="col-red" style="background: #ff0000;" onclick="setColor('#ff0000')"></button>
+        </div>
+        
+        <!-- 図形グループ -->
+        <div class="group">
+            <button onclick="setTool('rect')" id="tool-rect" class="active">長方形</button>
+            <button onclick="setTool('multi')" id="tool-multi">複数線</button>
+            <button onclick="setTool('line')" id="tool-line">直線</button>
+            <button onclick="setTool('hatch')" id="tool-hatch">斜線</button>
+        </div>
+
+        <!-- 注釈グループ -->
+        <div class="group">
+            <button onclick="setTool('text')" id="tool-text">文字</button>
+            <button onclick="setTool('dist')" id="tool-dist" style="font-weight:bold;">距離</button>
+        </div>
+        
+        <button onclick="undo()">1つ戻す</button>
+        <button onclick="clearCanvas()" style="color:#d9534f;">全消去</button>
+        <button onclick="generateFinalPDF()" class="download-btn">完成PDF保存</button>
+    </div>
+
+    <div id="canvas-container">
+        <canvas id="draw-canvas" width="708" height="681"></canvas>
+    </div>
+
+    <div class="hint-bar">Shiftキー：垂直・水平固定 | 領域外クリック：端にスナップして描画 | 斜線：クリックで点追加、ダブルクリックで完了</div>
+
+    <div class="modal-overlay" id="modal-overlay"></div>
+    <div id="multi-modal">
+        <h3 style="margin-top:0">複数線の設定</h3>
+        <p>全体の線の本数を指定してください:</p>
+        <input type="number" id="multi-count" value="3" min="2" style="width: 100%; padding: 10px; font-size: 18px; box-sizing: border-box;">
+        <div style="display:flex; gap:10px; margin-top:20px;">
+            <button style="flex:1; background:#007bff; color:white;" onclick="confirmMulti('V')">縦に並べる</button>
+            <button style="flex:1; background:#6c757d; color:white;" onclick="confirmMulti('H')">横に並べる</button>
+            <button style="flex:1;" onclick="closeModal()">中止</button>
+        </div>
+    </div>
+
+    <script>
+        const TEMPLATE_URL = 'https://nozutax.github.io/PDF-Export-with-Shapes/shozaizu-haichizu.pdf';
+        const { PDFDocument } = PDFLib;
+
+        const canvas = document.getElementById('draw-canvas');
+        const ctx = canvas.getContext('2d');
+        const cursor = document.getElementById('custom-cursor');
+        
+        let currentTool = 'rect', currentColor = '#000000', drawing = false;
+        let startX, startY, shapes = [], isShiftDown = false;
+        let hatchPoints = []; 
+        let lastMouseX = 0, lastMouseY = 0; 
+        let tempMultiRect = null; 
+
+        const FONT_SIZE_L = "bold 32px sans-serif";
+        const FONT_SIZE_S = "bold 24px sans-serif"; 
+        const LINE_WIDTH = 3; 
+
+        window.addEventListener('keydown', (e) => { if(e.key === 'Shift') isShiftDown = true; redraw(); });
+        window.addEventListener('keyup', (e) => { if(e.key === 'Shift') isShiftDown = false; redraw(); });
+
+        function getPos(clientX, clientY) {
+            const rect = canvas.getBoundingClientRect();
+            let x = clientX - rect.left;
+            let y = clientY - rect.top;
+            x = Math.max(0, Math.min(canvas.width, x));
+            y = Math.max(0, Math.min(canvas.height, y));
+            x = Math.round(x / 10) * 10;
+            y = Math.round(y / 10) * 10;
+            if (Math.abs(x - canvas.width) < 10) x = canvas.width;
+            if (Math.abs(y - canvas.height) < 10) y = canvas.height;
+            return { x, y };
+        }
+
+        function handleGlobalMouseMove(e) {
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+            cursor.style.left = e.clientX + 'px';
+            cursor.style.top = e.clientY + 'px';
+            if (drawing || hatchPoints.length > 0) redraw();
+        }
+
+        function handleGlobalMouseDown(e) {
+            if (e.target.closest('.toolbar') || e.target.closest('#multi-modal')) return;
+            
+            const p = getPos(e.clientX, e.clientY);
+
+            if (currentTool === 'hatch') {
+                hatchPoints.push(p);
+                if (hatchPoints.length > 2) {
+                    const first = hatchPoints[0];
+                    if (Math.hypot(p.x - first.x, p.y - first.y) < 15 && hatchPoints.length > 3) {
+                        finishHatch();
+                    }
+                }
+                redraw();
+                return;
+            }
+
+            startX = p.x; startY = p.y; drawing = true;
+
+            if (currentTool === 'text') {
+                const txt = prompt("文字入力:");
+                if (txt) shapes.push({type:'text', x:startX, y:startY, text:txt, color:currentColor});
+                drawing = false;
+                redraw();
+            }
+        }
+
+        function handleGlobalMouseUp(e) {
+            if (!drawing || currentTool === 'hatch') return;
+            
+            const p = getPos(e.clientX, e.clientY);
+            let endX = p.x, endY = p.y;
+            drawing = false;
+
+            if (currentTool === 'multi') {
+                tempMultiRect = {x1:startX, y1:startY, x2:endX, y2:endY, color:currentColor};
+                document.getElementById('modal-overlay').style.display = 'block';
+                document.getElementById('multi-modal').style.display = 'block';
+            } else if (currentTool === 'dist') {
+                const d = prompt("距離を入力:");
+                if (d) shapes.push({type:'dist', x1:startX, y1:startY, x2:endX, y2:endY, text:d+"m", color:'#ff0000'});
+            } else {
+                if (isShiftDown && currentTool !== 'rect') {
+                    if (Math.abs(endX - startX) > Math.abs(endY - startY)) endY = startY; else endX = startX;
+                }
+                shapes.push({type:currentTool, x1:startX, y1:startY, x2:endX, y2:endY, color:currentColor});
+            }
+            redraw();
+        }
+
+        window.addEventListener('dblclick', (e) => {
+            if (currentTool === 'hatch' && hatchPoints.length > 2) finishHatch();
+        });
+
+        function finishHatch() {
+            shapes.push({type:'hatch', points: [...hatchPoints], color: currentColor}); // color保存
+            hatchPoints = [];
+            redraw();
+        }
+
+        function redraw() {
+            ctx.clearRect(0,0,canvas.width, canvas.height);
+
+            shapes.forEach(s => {
+                ctx.strokeStyle = s.color; ctx.fillStyle = s.color; ctx.lineWidth = LINE_WIDTH;
+                
+                if(s.type==='rect') ctx.strokeRect(s.x1, s.y1, s.x2-s.x1, s.y2-s.y1);
+                else if(s.type==='hatch') drawHatchPattern(ctx, s.points, s.color);
+                else if(s.type==='multi'){
+                    const dx = s.x2-s.x1, dy = s.y2-s.y1;
+                    for(let i=0; i<s.count; i++){
+                        const r = i/(s.count-1);
+                        ctx.beginPath();
+                        if(s.dir==='V') { let px = s.x1+(dx*r); ctx.moveTo(px,s.y1); ctx.lineTo(px,s.y2); }
+                        else { let py = s.y1+(dy*r); ctx.moveTo(s.x1,py); ctx.lineTo(s.x2,py); }
+                        ctx.stroke();
+                    }
+                } else if(s.type==='line' || s.type==='dist'){
+                    ctx.beginPath(); ctx.moveTo(s.x1, s.y1); ctx.lineTo(s.x2, s.y2); ctx.stroke();
+                    if(s.type==='dist'){
+                        ctx.font = FONT_SIZE_S;
+                        drawArrow(ctx, s.x1, s.y1, s.x2, s.y2); drawArrow(ctx, s.x2, s.y2, s.x1, s.y1);
+                        const mx = (s.x1+s.x2)/2, my = (s.y1+s.y2)/2, tw = ctx.measureText(s.text).width;
+                        ctx.fillStyle = "white"; ctx.fillRect(mx-tw/2-6, my-15, tw+12, 30);
+                        ctx.fillStyle = s.color; ctx.textAlign="center"; ctx.fillText(s.text, mx, my+9);
+                    }
+                } else if(s.type==='text'){ ctx.font=FONT_SIZE_L; ctx.textAlign="left"; ctx.fillText(s.text, s.x, s.y); }
+            });
+
+            if (drawing) {
+                const p = getPos(lastMouseX, lastMouseY);
+                let curX = p.x, curY = p.y;
+                if (isShiftDown && currentTool !== 'rect' && currentTool !== 'multi') {
+                    if (Math.abs(curX - startX) > Math.abs(curY - startY)) curY = startY; else curX = startX;
+                }
+
+                ctx.strokeStyle = currentColor; // 現在の色を使用
+                ctx.lineWidth = LINE_WIDTH;
+
+                if (currentTool === 'rect') {
+                    ctx.strokeRect(startX, startY, curX - startX, curY - startY);
+                } else if (currentTool === 'multi') {
+                    ctx.setLineDash([5, 5]);
+                    ctx.strokeRect(startX, startY, curX - startX, curY - startY);
+                    ctx.setLineDash([]);
+                } else if (currentTool === 'line' || currentTool === 'dist') {
+                    ctx.beginPath(); ctx.moveTo(startX, startY); ctx.lineTo(curX, curY); ctx.stroke();
+                    if (currentTool === 'dist') {
+                        drawArrow(ctx, startX, startY, curX, curY);
+                        drawArrow(ctx, curX, curY, startX, startY);
+                    }
+                }
+            }
+
+            if (hatchPoints.length > 0) {
+                const p = getPos(lastMouseX, lastMouseY);
+                ctx.beginPath(); ctx.strokeStyle = currentColor; ctx.lineWidth = 1;
+                ctx.moveTo(hatchPoints[0].x, hatchPoints[0].y);
+                hatchPoints.forEach(pt => ctx.lineTo(pt.x, pt.y));
+                ctx.lineTo(p.x, p.y);
+                ctx.stroke();
+            }
+        }
+
+        function drawHatchPattern(context, points, color) {
+            context.save();
+            context.beginPath();
+            context.moveTo(points[0].x, points[0].y);
+            points.forEach(p => context.lineTo(p.x, p.y));
+            context.closePath();
+            context.clip();
+
+            // ハッチング色（薄く）
+            context.strokeStyle = color === '#ff0000' ? 'rgba(255, 0, 0, 0.4)' : 'rgba(0, 0, 0, 0.4)'; 
+            context.lineWidth = 2;
+            const max = Math.max(canvas.width, canvas.height);
+            for (let i = -max; i < max * 2; i += 12) {
+                context.beginPath();
+                context.moveTo(i, 0);
+                context.lineTo(i + max, max);
+                context.stroke();
+            }
+            context.restore();
+            // 外枠色
+            context.strokeStyle = color; 
+            context.lineWidth = 1;
+            context.stroke();
+        }
+
+        function drawArrow(c, x1, y1, x2, y2) {
+            const a = Math.atan2(y2-y1, x2-x1), l = 18;
+            c.beginPath(); c.moveTo(x2, y2);
+            c.lineTo(x2-l*Math.cos(a-Math.PI/6), y2-l*Math.sin(a-Math.PI/6));
+            c.moveTo(x2, y2);
+            c.lineTo(x2-l*Math.cos(a+Math.PI/6), y2-l*Math.sin(a+Math.PI/6));
+            c.stroke();
+        }
+
+        function setColor(c) { 
+            currentColor = c; 
+            document.querySelectorAll('.color-btn').forEach(b => b.classList.toggle('active', b.style.backgroundColor.rgb === c || (c==='#000000' && b.id==='col-black') || (c==='#ff0000' && b.id==='col-red'))); 
+        }
+
+        function setTool(t) { 
+            currentTool = t; 
+            hatchPoints = []; 
+            drawing = false; 
+            
+            // 色の自動切り替え
+            if (t === 'hatch' || t === 'dist') {
+                setColor('#ff0000');
+            } else {
+                setColor('#000000');
+            }
+
+            redraw(); 
+            document.querySelectorAll('.toolbar button').forEach(b => b.classList.toggle('active', b.id === 'tool-'+t)); 
+        }
+
+        function closeModal() { document.getElementById('modal-overlay').style.display = 'none'; document.getElementById('multi-modal').style.display = 'none'; }
+        function confirmMulti(d) { const c = parseInt(document.getElementById('multi-count').value); if(c>=2) shapes.push({type:'multi', ...tempMultiRect, count:c, dir:d}); closeModal(); redraw(); }
+        function undo() { shapes.pop(); hatchPoints=[]; redraw(); }
+        function clearCanvas() { if(confirm("全消去しますか？")) { shapes = []; hatchPoints=[]; redraw(); } }
+
+        async function generateFinalPDF() {
+            try {
+                const bytes = await fetch(TEMPLATE_URL).then(res => res.arrayBuffer());
+                const exCanvas = document.createElement('canvas'); exCanvas.width = canvas.width; exCanvas.height = canvas.height;
+                exCanvas.getContext('2d').drawImage(canvas, 0, 0);
+                const img = await fetch(exCanvas.toDataURL()).then(res => res.arrayBuffer());
+                const doc = await PDFDocument.load(bytes);
+                const png = await doc.embedPng(img);
+                const page = doc.getPage(0);
+                const { width, height } = page.getSize();
+                page.drawImage(png, { x: width * 0.500, y: height * 0.271, width: width * 0.423, height: height * 0.555 });
+                const out = await doc.save();
+                const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([out], {type: 'application/pdf'})); link.download = "保管場所所在図・配置図_完成品.pdf"; link.click();
+            } catch (e) { alert(e); }
+        }
+
+        setTool('rect'); // 初期ツール
+    </script>
+</body>
+</html>

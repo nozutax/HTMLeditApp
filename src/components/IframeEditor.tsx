@@ -6,20 +6,16 @@ export interface IframeEditorHandle {
   getBodyHtml: () => string
   insertImage: (dataUrl: string) => void
   execCommand: (command: string, value?: string) => void
-  getIframeElement: () => HTMLIFrameElement | null
 }
 
 interface IframeEditorProps {
   document: ParsedHtmlDocument
   initialBodyHtml: string
-  onBodyChange: (html: string) => void
 }
 
 export const IframeEditor = forwardRef<IframeEditorHandle, IframeEditorProps>(
-  function IframeEditor({ document, initialBodyHtml, onBodyChange }, ref) {
+  function IframeEditor({ document, initialBodyHtml }, ref) {
     const iframeRef = useRef<HTMLIFrameElement>(null)
-    const onBodyChangeRef = useRef(onBodyChange)
-    onBodyChangeRef.current = onBodyChange
 
     const getBodyHtml = useCallback(() => {
       const doc = iframeRef.current?.contentDocument
@@ -31,7 +27,6 @@ export const IframeEditor = forwardRef<IframeEditorHandle, IframeEditorProps>(
       if (!doc?.body) return
       doc.body.focus()
       doc.execCommand(command, false, value)
-      onBodyChangeRef.current(doc.body.innerHTML)
     }, [])
 
     const insertImage = useCallback((dataUrl: string) => {
@@ -56,20 +51,13 @@ export const IframeEditor = forwardRef<IframeEditorHandle, IframeEditorProps>(
       } else {
         doc.body.appendChild(img)
       }
-
-      onBodyChangeRef.current(doc.body.innerHTML)
     }, [])
 
-    useImperativeHandle(
-      ref,
-      () => ({
-        getBodyHtml,
-        insertImage,
-        execCommand,
-        getIframeElement: () => iframeRef.current,
-      }),
-      [getBodyHtml, insertImage, execCommand],
-    )
+    useImperativeHandle(ref, () => ({ getBodyHtml, insertImage, execCommand }), [
+      getBodyHtml,
+      insertImage,
+      execCommand,
+    ])
 
     useEffect(() => {
       const iframe = iframeRef.current
@@ -85,11 +73,6 @@ export const IframeEditor = forwardRef<IframeEditorHandle, IframeEditorProps>(
         doc.body.style.minHeight = '100%'
         doc.body.style.outline = 'none'
         doc.body.style.cursor = 'text'
-
-        const handleInput = () => {
-          onBodyChangeRef.current(doc.body.innerHTML)
-        }
-        doc.body.addEventListener('input', handleInput)
       }
 
       iframe.addEventListener('load', onLoad)

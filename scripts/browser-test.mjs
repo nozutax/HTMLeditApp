@@ -19,7 +19,7 @@ async function main() {
 
   console.log('1. アプリを開く...')
   await page.goto('http://localhost:5173/HTMLeditApp/')
-  await page.waitForSelector('text=HTMLファイルをここにドロップ')
+  await page.waitForSelector('text=HTMLファイルをアップロード')
 
   console.log('2. HTMLファイルをアップロード...')
   const fileInput = page.locator('input[type="file"]').first()

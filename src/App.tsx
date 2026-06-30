@@ -8,7 +8,6 @@ import type { ParsedHtmlDocument } from './types/htmlDocument'
 
 function App() {
   const [document, setDocument] = useState<ParsedHtmlDocument | null>(null)
-  const [bodyHtml, setBodyHtml] = useState('')
   const [editorKey, setEditorKey] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<{ message: string; type: 'info' | 'error' } | null>(null)
@@ -17,7 +16,6 @@ function App() {
 
   const openDocument = useCallback((doc: ParsedHtmlDocument) => {
     setDocument(doc)
-    setBodyHtml(doc.bodyHtml)
     setEditorKey((k) => k + 1)
     setError(null)
   }, [])
@@ -25,9 +23,7 @@ function App() {
   const handleFileSelect = async (file: File) => {
     try {
       const html = await readHtmlFile(file)
-      const parsed = parseHtmlDocument(html, file.name)
-      openDocument(parsed)
-      setToast({ message: `「${file.name}」を読み込みました`, type: 'info' })
+      openDocument(parseHtmlDocument(html, file.name))
     } catch (err) {
       const message = err instanceof Error ? err.message : 'ファイルの読み込みに失敗しました'
       setError(message)
@@ -35,14 +31,9 @@ function App() {
     }
   }
 
-  const handleBodyChange = useCallback((html: string) => {
-    setBodyHtml(html)
-  }, [])
-
   const handleDownload = () => {
-    if (!document) return
-    const currentBody = editorRef.current?.getBodyHtml() ?? bodyHtml
-    downloadHtml(document, currentBody)
+    if (!document || !editorRef.current) return
+    downloadHtml(document, editorRef.current.getBodyHtml())
     setToast({ message: 'HTMLファイルをダウンロードしました', type: 'info' })
   }
 
@@ -61,6 +52,9 @@ function App() {
     <div className="flex h-full flex-col bg-slate-100">
       <header className="shrink-0 border-b border-slate-200 bg-white px-4 py-3">
         <h1 className="text-lg font-semibold text-slate-800">HTML編集アプリ</h1>
+        <p className="mt-0.5 text-xs text-slate-500">
+          HTMLをアップロード → 編集 → ダウンロード（ブラウザには保存しません）
+        </p>
       </header>
 
       {!document ? (
@@ -77,8 +71,7 @@ function App() {
                   key={editorKey}
                   ref={editorRef}
                   document={document}
-                  initialBodyHtml={bodyHtml}
-                  onBodyChange={handleBodyChange}
+                  initialBodyHtml={document.bodyHtml}
                 />
               </div>
             </div>

@@ -25,8 +25,9 @@ export function DropZone({ onFileSelect, error }: DropZoneProps) {
       <label className="flex w-full max-w-lg cursor-pointer flex-col items-center gap-4 rounded-xl border-2 border-dashed border-slate-300 bg-white p-12 transition-colors hover:border-blue-400 hover:bg-blue-50/50">
         <div className="text-5xl text-slate-400">📄</div>
         <div className="text-center">
-          <p className="text-lg font-medium text-slate-800">HTMLファイルをここにドロップ</p>
-          <p className="mt-1 text-sm text-slate-500">またはクリックしてファイルを選択</p>
+          <p className="text-lg font-medium text-slate-800">HTMLファイルをアップロード</p>
+          <p className="mt-1 text-sm text-slate-500">ドラッグ＆ドロップ、またはクリックして選択</p>
+          <p className="mt-2 text-xs text-slate-400">編集後はダウンロードで保存（ブラウザには残りません）</p>
         </div>
         <input
           type="file"
