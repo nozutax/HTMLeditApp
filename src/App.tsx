@@ -3,22 +3,25 @@ import { DropZone } from './components/DropZone'
 import { TopToolbar } from './components/TopToolbar'
 import { PartsPanel } from './components/PartsPanel'
 import { DeviceFrame } from './components/DeviceFrame'
+import { SlideNavigator } from './components/SlideNavigator'
 import { IframeEditor, type IframeEditorHandle, type SelectionInfo } from './components/IframeEditor'
 import { FloatingToolbar } from './components/FloatingToolbar'
 import { ElementOverlay } from './components/ElementOverlay'
 import { Inspector } from './components/Inspector'
 import { Toast } from './components/Toast'
-import { downloadHtml, parseHtmlDocument, readHtmlFile } from './lib/htmlDocument'
+import { downloadHtml, parseDocument, readHtmlFile } from './lib/htmlDocument'
 import type { ParsedHtmlDocument } from './types/htmlDocument'
 import type { DeviceMode, OverlayRect } from './types/editor'
 
 function App() {
   const [document, setDocument] = useState<ParsedHtmlDocument | null>(null)
   const [editorKey, setEditorKey] = useState(0)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<{ message: string; type: 'info' | 'error' } | null>(null)
   const [selection, setSelection] = useState<SelectionInfo | null>(null)
   const [deviceMode, setDeviceMode] = useState<DeviceMode>('desktop')
+  const [activeSlide, setActiveSlide] = useState(0)
   const [selectionRect, setSelectionRect] = useState<OverlayRect | null>(null)
   const [elementRect, setElementRect] = useState<OverlayRect | null>(null)
 
@@ -34,17 +37,26 @@ function App() {
     setEditorKey((k) => k + 1)
     setError(null)
     setSelection(null)
-    setDeviceMode('desktop')
+    setActiveSlide(0)
+    setDeviceMode(doc.format === 'bundler-slide' ? 'slide' : 'desktop')
   }, [])
 
   const handleFileSelect = async (file: File) => {
+    setLoading(true)
+    setError(null)
     try {
       const html = await readHtmlFile(file)
-      openDocument(parseHtmlDocument(html, file.name))
+      const doc = await parseDocument(html, file.name)
+      openDocument(doc)
+      if (doc.format === 'bundler-slide') {
+        setToast({ message: `スライド形式を読み込みました（${doc.slideCount ?? 0}枚）`, type: 'info' })
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'ファイルの読み込みに失敗しました'
       setError(message)
       setToast({ message, type: 'error' })
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -71,9 +83,12 @@ function App() {
       requestAnimationFrame(() => {
         setSelectionRect(editorRef.current?.getSelectionRect() ?? null)
         setElementRect(editorRef.current?.getSelectedElementRect() ?? null)
+        if (document?.format === 'bundler-slide') {
+          setActiveSlide(editorRef.current?.getActiveSlideIndex() ?? 0)
+        }
       })
     },
-    [],
+    [document?.format],
   )
 
   const handleRectsChange = useCallback(() => {
@@ -91,13 +106,15 @@ function App() {
           <header className="shrink-0 border-b border-slate-200 bg-white px-4 py-3">
             <h1 className="text-lg font-semibold text-slate-800">HTML編集アプリ</h1>
           </header>
-          <DropZone onFileSelect={handleFileSelect} error={error} />
+          <DropZone onFileSelect={handleFileSelect} error={error} loading={loading} />
         </>
       ) : (
         <>
           <TopToolbar
             editorRef={editorRef}
             fileName={document.fileName}
+            format={document.format}
+            slideCount={document.slideCount}
             deviceMode={deviceMode}
             onDeviceModeChange={setDeviceMode}
             onDownload={handleDownload}
@@ -105,8 +122,17 @@ function App() {
             onError={(msg) => setToast({ message: msg, type: 'error' })}
           />
 
+          {document.format === 'bundler-slide' && (
+            <SlideNavigator
+              editorRef={editorRef}
+              slideCount={document.slideCount ?? editorRef.current?.getSlideCount() ?? 0}
+              activeSlide={activeSlide}
+              onSlideChange={setActiveSlide}
+            />
+          )}
+
           <div className="flex min-h-0 flex-1">
-            <PartsPanel editorRef={editorRef} />
+            <PartsPanel editorRef={editorRef} format={document.format} />
 
             <div className="relative flex min-w-0 flex-1 flex-col">
               <DeviceFrame deviceMode={deviceMode}>

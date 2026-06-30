@@ -33,7 +33,7 @@ const TAG_LABELS: Record<string, string> = {
   td: 'セル',
   th: '見出しセル',
   div: 'ブロック',
-  section: 'セクション',
+  section: 'スライド',
   span: 'テキスト',
   body: 'ページ全体',
   hr: '区切り線',
@@ -243,6 +243,20 @@ export function removeSelectedElement(doc: Document): boolean {
 
   block.remove()
   return true
+}
+
+export function getSlideElements(doc: Document): HTMLElement[] {
+  const body = doc.body
+  if (!body) return []
+  return Array.from(body.querySelectorAll('section.slide, #deck > .slide'))
+}
+
+export function goToSlide(doc: Document, index: number): void {
+  const slides = getSlideElements(doc)
+  const slide = slides[index]
+  if (!slide) return
+  selectElement(doc, slide)
+  slide.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
 export function selectElement(doc: Document, el: HTMLElement): void {

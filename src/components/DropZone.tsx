@@ -1,9 +1,10 @@
 interface DropZoneProps {
   onFileSelect: (file: File) => void
   error: string | null
+  loading?: boolean
 }
 
-export function DropZone({ onFileSelect, error }: DropZoneProps) {
+export function DropZone({ onFileSelect, error, loading = false }: DropZoneProps) {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
     const file = e.dataTransfer.files[0]
@@ -23,10 +24,15 @@ export function DropZone({ onFileSelect, error }: DropZoneProps) {
       onDrop={handleDrop}
     >
       <label className="flex w-full max-w-lg cursor-pointer flex-col items-center gap-4 rounded-xl border-2 border-dashed border-slate-300 bg-white p-12 transition-colors hover:border-blue-400 hover:bg-blue-50/50">
-        <div className="text-5xl text-slate-400">📄</div>
+        <div className="text-5xl text-slate-400">{loading ? '⏳' : '📄'}</div>
         <div className="text-center">
-          <p className="text-lg font-medium text-slate-800">HTMLファイルをアップロード</p>
-          <p className="mt-1 text-sm text-slate-500">ドラッグ＆ドロップ、またはクリックして選択</p>
+          <p className="text-lg font-medium text-slate-800">
+            {loading ? '読み込み中...' : 'HTMLファイルをアップロード'}
+          </p>
+          <p className="mt-1 text-sm text-slate-500">
+            通常HTML・スライド形式（バンドル）に対応
+          </p>
+          <p className="mt-1 text-xs text-slate-400">ドラッグ＆ドロップ、またはクリックして選択</p>
         </div>
         <input
           type="file"

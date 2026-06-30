@@ -2,7 +2,7 @@ export interface BlockDefinition {
   id: string
   label: string
   icon: string
-  category: 'text' | 'layout' | 'media' | 'table'
+  category: 'text' | 'layout' | 'media' | 'table' | 'slide'
   html: string
 }
 
@@ -113,9 +113,85 @@ export const BLOCK_DEFINITIONS: BlockDefinition[] = [
   },
 ]
 
+export const SLIDE_BLOCK_DEFINITIONS: BlockDefinition[] = [
+  {
+    id: 'slide-title',
+    label: 'タイトル',
+    icon: '▣',
+    category: 'slide',
+    html: `<section class="slide dark">
+  <div class="canvas ink">
+    <div class="frame">
+      <span class="eyebrow">サブタイトル</span>
+      <div class="body top" style="margin-top:64px;">
+        <h1 class="title" style="font-size:72px;">スライドタイトル</h1>
+        <div class="accent-line"></div>
+        <p class="subline" style="font-size:24px;max-width:760px;margin-top:28px;">説明テキスト</p>
+      </div>
+    </div>
+  </div>
+</section>`,
+  },
+  {
+    id: 'slide-content',
+    label: '本文',
+    icon: '☰',
+    category: 'slide',
+    html: `<section class="slide">
+  <div class="canvas">
+    <div class="frame">
+      <h2 class="title" style="font-size:48px;">見出し</h2>
+      <div class="body" style="margin-top:32px;">
+        <p style="font-size:24px;line-height:1.6;">本文テキストをここに入力してください。</p>
+      </div>
+    </div>
+  </div>
+</section>`,
+  },
+  {
+    id: 'slide-bullets',
+    label: '箇条書き',
+    icon: '•',
+    category: 'slide',
+    html: `<section class="slide">
+  <div class="canvas">
+    <div class="frame">
+      <h2 class="title" style="font-size:44px;">ポイント</h2>
+      <ul style="font-size:26px;line-height:1.8;margin-top:32px;list-style:disc;padding-left:32px;">
+        <li>項目1</li>
+        <li>項目2</li>
+        <li>項目3</li>
+      </ul>
+    </div>
+  </div>
+</section>`,
+  },
+  {
+    id: 'slide-two-col',
+    label: '2カラム',
+    icon: '▥',
+    category: 'slide',
+    html: `<section class="slide">
+  <div class="canvas">
+    <div class="frame" style="display:flex;gap:48px;">
+      <div style="flex:1;">
+        <h2 class="title" style="font-size:36px;">左カラム</h2>
+        <p style="font-size:22px;margin-top:16px;">テキスト</p>
+      </div>
+      <div style="flex:1;">
+        <h2 class="title" style="font-size:36px;">右カラム</h2>
+        <p style="font-size:22px;margin-top:16px;">テキスト</p>
+      </div>
+    </div>
+  </div>
+</section>`,
+  },
+]
+
 export const BLOCK_CATEGORIES: { id: BlockDefinition['category']; label: string }[] = [
   { id: 'text', label: 'テキスト' },
   { id: 'layout', label: 'レイアウト' },
   { id: 'media', label: 'メディア' },
   { id: 'table', label: '表' },
+  { id: 'slide', label: 'スライド' },
 ]

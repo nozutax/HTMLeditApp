@@ -1,11 +1,14 @@
 import { useRef } from 'react'
 import type { DeviceMode } from '../types/editor'
+import type { DocumentFormat } from '../types/htmlDocument'
 import type { IframeEditorHandle } from './IframeEditor'
 import { fileToBase64DataUrl } from '../lib/image'
 
 interface TopToolbarProps {
   editorRef: React.RefObject<IframeEditorHandle | null>
   fileName: string
+  format: DocumentFormat
+  slideCount?: number
   deviceMode: DeviceMode
   onDeviceModeChange: (mode: DeviceMode) => void
   onDownload: () => void
@@ -48,6 +51,8 @@ function ToolDivider() {
 export function TopToolbar({
   editorRef,
   fileName,
+  format,
+  slideCount,
   deviceMode,
   onDeviceModeChange,
   onDownload,
@@ -86,6 +91,11 @@ export function TopToolbar({
           <span className="truncate text-xs text-slate-400" title={fileName}>
             {fileName}
           </span>
+          {format === 'bundler-slide' && slideCount != null && (
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+              スライド {slideCount}枚
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -220,6 +230,15 @@ export function TopToolbar({
         >
           📲
         </ToolButton>
+        {format === 'bundler-slide' && (
+          <ToolButton
+            title="スライド表示 (1200px)"
+            active={deviceMode === 'slide'}
+            onClick={() => onDeviceModeChange('slide')}
+          >
+            ▣
+          </ToolButton>
+        )}
       </div>
     </header>
   )

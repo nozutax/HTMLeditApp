@@ -21,7 +21,7 @@ export function DeviceFrame({ deviceMode, children }: DeviceFrameProps) {
         {deviceMode !== 'desktop' && (
           <div className="absolute left-0 right-0 top-0 z-10 flex items-center justify-center border-b border-slate-200 bg-slate-50 py-1">
             <span className="text-[10px] font-medium text-slate-400">
-              {deviceMode === 'tablet' ? '768px' : '375px'}
+              {deviceMode === 'tablet' ? '768px' : deviceMode === 'mobile' ? '375px' : '1200px'}
             </span>
           </div>
         )}

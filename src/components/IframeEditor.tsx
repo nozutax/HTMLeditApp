@@ -11,6 +11,8 @@ import {
   duplicateSelectedElement,
   removeSelectedElement,
   insertHtmlAtSelection,
+  goToSlide as goToSlideInDoc,
+  getSlideElements,
   type SelectionInfo,
   type ElementInspectorInfo,
 } from '../lib/editorChrome'
@@ -37,6 +39,9 @@ export interface IframeEditorHandle {
   duplicateSelected: () => void
   removeSelected: () => void
   getIframeElement: () => HTMLIFrameElement | null
+  getSlideCount: () => number
+  goToSlide: (index: number) => void
+  getActiveSlideIndex: () => number
 }
 
 interface IframeEditorProps {
@@ -222,6 +227,31 @@ export const IframeEditor = forwardRef<IframeEditorHandle, IframeEditorProps>(
       notifySelection(doc)
     }, [notifySelection])
 
+    const getSlideCount = useCallback(() => {
+      const doc = getIframeDoc()
+      return doc ? getSlideElements(doc).length : 0
+    }, [])
+
+    const goToSlide = useCallback(
+      (index: number) => {
+        const doc = getIframeDoc()
+        if (!doc) return
+        goToSlideInDoc(doc, index)
+        notifySelection(doc)
+      },
+      [notifySelection],
+    )
+
+    const getActiveSlideIndex = useCallback(() => {
+      const doc = getIframeDoc()
+      if (!doc) return 0
+      const el = getSelectedElement(doc)
+      if (!el) return 0
+      const slides = getSlideElements(doc)
+      const idx = slides.findIndex((slide) => slide === el || slide.contains(el))
+      return idx >= 0 ? idx : 0
+    }, [])
+
     const insertHtml = useCallback(
       (html: string) => {
         const doc = getIframeDoc()
@@ -280,6 +310,9 @@ export const IframeEditor = forwardRef<IframeEditorHandle, IframeEditorProps>(
         duplicateSelected,
         removeSelected,
         getIframeElement: () => iframeRef.current,
+        getSlideCount,
+        goToSlide,
+        getActiveSlideIndex,
       }),
       [
         getBodyHtml,
@@ -298,6 +331,9 @@ export const IframeEditor = forwardRef<IframeEditorHandle, IframeEditorProps>(
         moveSelected,
         duplicateSelected,
         removeSelected,
+        getSlideCount,
+        goToSlide,
+        getActiveSlideIndex,
       ],
     )
 
