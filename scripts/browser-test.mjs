@@ -43,7 +43,32 @@ async function main() {
   }
   console.log('   ✓ 左プレビュー・右ダッシュボードのレイアウト')
 
-  console.log('4. 太字編集をテスト...')
+  console.log('4. 連続入力をテスト...')
+  const frameHandle = await page.locator('iframe[title="HTMLプレビュー"]').elementHandle()
+  const contentFrame = await frameHandle?.contentFrame()
+  if (!contentFrame) throw new Error('iframeにアクセスできない')
+
+  const typed = await contentFrame.evaluate(() => {
+    const p = document.querySelector('p')
+    if (!p) return ''
+    p.focus()
+    const range = document.createRange()
+    range.selectNodeContents(p)
+    range.collapse(false)
+    const sel = window.getSelection()
+    sel?.removeAllRanges()
+    sel?.addRange(range)
+    for (const c of ['あ', 'い', 'う']) {
+      document.execCommand('insertText', false, c)
+    }
+    return p.textContent ?? ''
+  })
+  if (!typed.includes('あいう')) {
+    throw new Error(`連続入力に失敗: ${typed}`)
+  }
+  console.log('   ✓ 連続して文字入力できた')
+
+  console.log('5. 太字編集をテスト...')
   const body = iframe.locator('body')
   await body.click()
   await page.keyboard.press('Control+A')
@@ -54,7 +79,7 @@ async function main() {
   if (boldCount === 0) throw new Error('太字の適用に失敗')
   console.log('   ✓ ダッシュボードから太字が適用された')
 
-  console.log('5. ダウンロードをテスト...')
+  console.log('6. ダウンロードをテスト...')
   const downloadPromise = page.waitForEvent('download')
   await page.locator('button:has-text("ダウンロード")').click()
   const download = await downloadPromise
@@ -70,9 +95,9 @@ async function main() {
   }
   console.log('   ✓ 完全なHTMLがダウンロードされた')
 
-  console.log('6. 本番ビルドの確認...')
+  console.log('7. 本番ビルドの確認...')
   await page.goto('http://localhost:4173/HTMLeditApp/')
-  await page.waitForSelector('text=HTMLファイルをここにドロップ', { timeout: 5000 })
+  await page.waitForSelector('text=HTMLファイルをアップロード', { timeout: 5000 })
   console.log('   ✓ 本番ビルドがブラウザで動作する')
 
   if (errors.length > 0) {

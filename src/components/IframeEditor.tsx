@@ -1,5 +1,5 @@
 import { useEffect, useRef, useImperativeHandle, forwardRef, useCallback } from 'react'
-import { buildFullHtml } from '../lib/htmlDocument'
+import { buildEditorHtml } from '../lib/htmlDocument'
 import type { ParsedHtmlDocument } from '../types/htmlDocument'
 
 export interface IframeEditorHandle {
@@ -9,18 +9,19 @@ export interface IframeEditorHandle {
 }
 
 interface IframeEditorProps {
-  document: ParsedHtmlDocument
+  loadKey: number
+  htmlDocument: ParsedHtmlDocument
   initialBodyHtml: string
 }
 
 export const IframeEditor = forwardRef<IframeEditorHandle, IframeEditorProps>(
-  function IframeEditor({ document, initialBodyHtml }, ref) {
+  function IframeEditor({ loadKey, htmlDocument, initialBodyHtml }, ref) {
     const iframeRef = useRef<HTMLIFrameElement>(null)
+    const loadedKeyRef = useRef<number | null>(null)
 
     const getBodyHtml = useCallback(() => {
-      const doc = iframeRef.current?.contentDocument
-      return doc?.body?.innerHTML ?? initialBodyHtml
-    }, [initialBodyHtml])
+      return iframeRef.current?.contentDocument?.body?.innerHTML ?? ''
+    }, [])
 
     const execCommand = useCallback((command: string, value?: string) => {
       const doc = iframeRef.current?.contentDocument
@@ -60,28 +61,14 @@ export const IframeEditor = forwardRef<IframeEditorHandle, IframeEditorProps>(
     ])
 
     useEffect(() => {
+      if (loadedKeyRef.current === loadKey) return
+
       const iframe = iframeRef.current
       if (!iframe) return
 
-      const fullHtml = buildFullHtml(document, initialBodyHtml)
-
-      const onLoad = () => {
-        const doc = iframe.contentDocument
-        if (!doc?.body) return
-
-        doc.body.contentEditable = 'true'
-        doc.body.style.minHeight = '100%'
-        doc.body.style.outline = 'none'
-        doc.body.style.cursor = 'text'
-      }
-
-      iframe.addEventListener('load', onLoad)
-      iframe.srcdoc = fullHtml
-
-      return () => {
-        iframe.removeEventListener('load', onLoad)
-      }
-    }, [document, initialBodyHtml])
+      loadedKeyRef.current = loadKey
+      iframe.srcdoc = buildEditorHtml(htmlDocument, initialBodyHtml)
+    }, [loadKey, htmlDocument, initialBodyHtml])
 
     return (
       <iframe

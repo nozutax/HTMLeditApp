@@ -48,6 +48,23 @@ ${bodyHtml}
 </html>`
 }
 
+/** iframe プレビュー用（body を編集可能にする） */
+export function buildEditorHtml(doc: ParsedHtmlDocument, bodyHtml: string): string {
+  const htmlAttrs = doc.htmlAttributes ? ` ${doc.htmlAttributes}` : ''
+  const baseBodyAttrs = doc.bodyAttributes ? `${doc.bodyAttributes} ` : ''
+  const bodyAttrs = `${baseBodyAttrs}contenteditable="true" style="outline:none;min-height:100%;cursor:text"`
+
+  return `${doc.doctype}
+<html${htmlAttrs}>
+<head>
+${doc.headHtml}
+</head>
+<body ${bodyAttrs}>
+${bodyHtml}
+</body>
+</html>`
+}
+
 export function downloadHtml(doc: ParsedHtmlDocument, bodyHtml: string): void {
   const fullHtml = buildFullHtml(doc, bodyHtml)
   const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8' })

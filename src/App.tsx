@@ -69,8 +69,9 @@ function App() {
               <div className="h-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
                 <IframeEditor
                   key={editorKey}
+                  loadKey={editorKey}
                   ref={editorRef}
-                  document={document}
+                  htmlDocument={document}
                   initialBodyHtml={document.bodyHtml}
                 />
               </div>
