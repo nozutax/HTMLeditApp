@@ -1,5 +1,5 @@
 import { useEffect, useRef, useImperativeHandle, forwardRef, useCallback } from 'react'
-import { buildEditorHtml } from '../lib/htmlDocument'
+import { buildEditorHtml, SLIDE_NATIVE_WIDTH } from '../lib/htmlDocument'
 import {
   describeSelection,
   describeElementForInspector,
@@ -391,12 +391,32 @@ export const IframeEditor = forwardRef<IframeEditorHandle, IframeEditorProps>(
 
       loadedKeyRef.current = loadKey
 
+      const isSlide = htmlDocument.format === 'bundler-slide'
+
+      const updateSlideZoom = () => {
+        if (!isSlide) return
+        const frame = iframeRef.current
+        const d = frame?.contentDocument
+        if (!frame || !d?.documentElement) return
+        const available = frame.clientWidth - 32
+        const scale = Math.min(1, Math.max(0.1, available / SLIDE_NATIVE_WIDTH))
+        d.documentElement.style.setProperty('--ed-slide-zoom', String(scale))
+      }
+
       const onLoad = () => {
         const doc = iframe.contentDocument
         if (!doc?.body) return
 
+        updateSlideZoom()
+
         const handleSelectionChange = () => notifySelection(doc)
         const handleScroll = () => onRectsChangeRef.current?.()
+
+        const resizeObserver = new ResizeObserver(() => {
+          updateSlideZoom()
+          onRectsChangeRef.current?.()
+        })
+        resizeObserver.observe(iframe)
 
         let hoverFrame = 0
         const handleMouseMove = (e: MouseEvent) => {
@@ -439,6 +459,7 @@ export const IframeEditor = forwardRef<IframeEditorHandle, IframeEditorProps>(
         iframe.dataset.selectionCleanup = 'true'
         ;(iframe as HTMLIFrameElement & { _cleanup?: () => void })._cleanup = () => {
           if (hoverFrame) cancelAnimationFrame(hoverFrame)
+          resizeObserver.disconnect()
           doc.removeEventListener('selectionchange', handleSelectionChange)
           doc.removeEventListener('mouseup', handleSelectionChange)
           doc.removeEventListener('keyup', handleSelectionChange)

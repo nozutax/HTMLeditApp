@@ -11,45 +11,60 @@ import {
 
 const DEFAULT_DOCTYPE = '<!DOCTYPE html>'
 
+/** スライド1枚の本来の設計サイズ（全画面プレゼン用）。 */
+export const SLIDE_NATIVE_WIDTH = 1200
+export const SLIDE_NATIVE_HEIGHT = 800
+
 export const SLIDE_EDITOR_STYLES = `
 <style id="html-editor-slide-mode">
-  html, body { height: auto !important; min-height: 100% !important; overflow: auto !important; }
-  body { display: block !important; align-items: stretch !important; justify-content: flex-start !important; }
+  html, body {
+    height: auto !important;
+    min-height: 100% !important;
+    width: auto !important;
+    overflow: auto !important;
+    margin: 0 !important;
+    background: #e2e8f0 !important;
+    display: block !important;
+  }
+  /* 表示領域の幅に合わせてデッキ全体を自動縮小し、全体を見えるようにする */
   #deck {
     position: relative !important;
-    width: 100% !important;
+    width: ${SLIDE_NATIVE_WIDTH}px !important;
     height: auto !important;
     min-height: 0 !important;
+    margin: 0 auto !important;
+    padding: 24px 0 !important;
+    zoom: var(--ed-slide-zoom, 1);
     counter-reset: slide;
   }
+  /* 各スライドを本来の比率（1200x800）で描画 */
   section.slide, .slide {
-    display: flex !important;
+    display: block !important;
     position: relative !important;
     inset: auto !important;
-    width: 100% !important;
-    min-height: 600px !important;
-    margin: 0 0 16px 0 !important;
-    box-shadow: inset 0 0 0 2px rgba(37, 99, 235, 0.15) !important;
+    width: ${SLIDE_NATIVE_WIDTH}px !important;
+    height: ${SLIDE_NATIVE_HEIGHT}px !important;
+    min-height: 0 !important;
+    margin: 0 auto 24px !important;
+    overflow: hidden !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.18), inset 0 0 0 2px rgba(37, 99, 235, 0.15) !important;
     counter-increment: slide;
   }
   section.slide::before, .slide::before {
     content: 'スライド ' counter(slide);
     position: absolute;
-    top: 8px;
+    top: 10px;
     right: 12px;
-    font: 11px/1.4 system-ui, sans-serif;
+    font: 12px/1.4 system-ui, sans-serif;
     color: #2563eb;
-    background: rgba(255,255,255,0.9);
+    background: rgba(255,255,255,0.92);
     padding: 2px 8px;
     border-radius: 4px;
     z-index: 5;
     pointer-events: none;
   }
-  #nav, #key-hint {
-    position: sticky !important;
-    bottom: 0 !important;
-    z-index: 100 !important;
-  }
+  /* 元のスライドショー用ナビは編集中は隠す */
+  #nav, #key-hint { display: none !important; }
 </style>
 `
 
