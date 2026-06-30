@@ -33,8 +33,10 @@ npm run test:browser
 
 リポジトリ名が `HTMLeditApp` の場合、`vite.config.ts` の `base: '/HTMLeditApp/'` が必要です（未設定だと JS/CSS が 404 になり真っ白になります）。
 
-1. GitHub リポジトリの **Settings → Pages → Build and deployment** で **GitHub Actions** を選択
-2. `main` ブランチへ push すると `.github/workflows/deploy.yml` が自動デプロイします
+1. GitHub リポジトリの **Settings → Pages → Build and deployment** で以下を設定
+   - **Source**: Deploy from a branch
+   - **Branch**: `gh-pages` / `/ (root)`
+2. `main` ブランチへ push すると `.github/workflows/deploy.yml` が `dist` を `gh-pages` ブランチへ自動デプロイします
 3. 公開 URL: https://nozutax.github.io/HTMLeditApp/
 
 ## 技術スタック
