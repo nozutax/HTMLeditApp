@@ -1,11 +1,12 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { fileToBase64DataUrl } from '../lib/image'
-import type { IframeEditorHandle } from './IframeEditor'
+import type { IframeEditorHandle, SelectionInfo } from './IframeEditor'
 import type { ParsedHtmlDocument } from '../types/htmlDocument'
 
 interface EditorDashboardProps {
   document: ParsedHtmlDocument
   editorRef: React.RefObject<IframeEditorHandle | null>
+  selection: SelectionInfo | null
   onDownload: () => void
   onOpenNew: () => void
   onError: (message: string) => void
@@ -46,14 +47,40 @@ function DashSection({ title, children }: { title: string; children: React.React
   )
 }
 
+function ColorField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: string
+  onChange: (color: string) => void
+}) {
+  return (
+    <label className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+      <span>{label}</span>
+      <input
+        type="color"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-8 w-12 cursor-pointer rounded border border-slate-200 bg-white p-0.5"
+      />
+    </label>
+  )
+}
+
 export function EditorDashboard({
   document,
   editorRef,
+  selection,
   onDownload,
   onOpenNew,
   onError,
 }: EditorDashboardProps) {
   const imageInputRef = useRef<HTMLInputElement>(null)
+  const [textColor, setTextColor] = useState('#1e293b')
+  const [markerColor, setMarkerColor] = useState('#fef08a')
+  const [elementBgColor, setElementBgColor] = useState('#3b82f6')
 
   const run = (command: string, value?: string) => {
     editorRef.current?.execCommand(command, value)
@@ -77,6 +104,21 @@ export function EditorDashboard({
     }
   }
 
+  const applyTextColor = (color: string) => {
+    setTextColor(color)
+    editorRef.current?.setForeColor(color)
+  }
+
+  const applyMarkerColor = (color: string) => {
+    setMarkerColor(color)
+    editorRef.current?.setTextBackgroundColor(color)
+  }
+
+  const applyElementBg = (color: string) => {
+    setElementBgColor(color)
+    editorRef.current?.setElementBackgroundColor(color)
+  }
+
   return (
     <aside className="flex h-full w-80 shrink-0 flex-col border-l border-slate-200 bg-slate-50">
       <div className="border-b border-slate-200 bg-white px-4 py-4">
@@ -84,6 +126,22 @@ export function EditorDashboard({
         <p className="mt-1 truncate text-xs text-slate-500" title={document.fileName}>
           {document.fileName}
         </p>
+      </div>
+
+      <div className="border-b border-blue-100 bg-blue-50 px-4 py-3">
+        <p className="text-xs font-medium text-blue-800">選択中</p>
+        {selection ? (
+          <p className="mt-1 text-sm text-blue-900">
+            <span className="font-semibold">{selection.label}</span>
+            {selection.preview && (
+              <span className="mt-0.5 block truncate text-xs text-blue-700">
+                「{selection.preview}」
+              </span>
+            )}
+          </p>
+        ) : (
+          <p className="mt-1 text-sm text-blue-700">左の画面で要素をクリックしてください</p>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -98,6 +156,21 @@ export function EditorDashboard({
           <DashButton title="別のHTMLを開く" onClick={onOpenNew} className="w-full">
             別のHTMLを開く
           </DashButton>
+        </DashSection>
+
+        <DashSection title="色">
+          <div className="flex w-full flex-col gap-2">
+            <ColorField label="文字色" value={textColor} onChange={applyTextColor} />
+            <ColorField label="マーカー色" value={markerColor} onChange={applyMarkerColor} />
+            <ColorField
+              label="要素の背景色"
+              value={elementBgColor}
+              onChange={applyElementBg}
+            />
+          </div>
+          <p className="mt-2 w-full text-xs text-slate-400">
+            ボタンやブロックはクリックしてから「要素の背景色」を変更
+          </p>
         </DashSection>
 
         <DashSection title="テキスト装飾">
@@ -157,12 +230,6 @@ export function EditorDashboard({
             ↪ やり直し
           </DashButton>
         </DashSection>
-      </div>
-
-      <div className="border-t border-slate-200 bg-white px-4 py-3">
-        <p className="text-xs text-slate-400">
-          編集内容はブラウザに保存されません。タブを閉じると消えます。
-        </p>
       </div>
     </aside>
   )

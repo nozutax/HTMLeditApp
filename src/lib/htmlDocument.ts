@@ -1,4 +1,6 @@
 import type { ParsedHtmlDocument } from '../types/htmlDocument'
+import { stripEditorChrome } from './editorChrome'
+import { EDITOR_CHROME_STYLES } from './editorChrome'
 
 const DEFAULT_DOCTYPE = '<!DOCTYPE html>'
 
@@ -58,6 +60,7 @@ export function buildEditorHtml(doc: ParsedHtmlDocument, bodyHtml: string): stri
 <html${htmlAttrs}>
 <head>
 ${doc.headHtml}
+${EDITOR_CHROME_STYLES}
 </head>
 <body ${bodyAttrs}>
 ${bodyHtml}
@@ -66,7 +69,8 @@ ${bodyHtml}
 }
 
 export function downloadHtml(doc: ParsedHtmlDocument, bodyHtml: string): void {
-  const fullHtml = buildFullHtml(doc, bodyHtml)
+  const cleanBody = stripEditorChrome(bodyHtml)
+  const fullHtml = buildFullHtml(doc, cleanBody)
   const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
