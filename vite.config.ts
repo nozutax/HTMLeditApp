@@ -6,4 +6,8 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   base: '/HTMLeditApp/',
   plugins: [react(), tailwindcss()],
+  preview: {
+    port: 4173,
+    strictPort: true,
+  },
 })

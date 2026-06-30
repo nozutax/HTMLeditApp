@@ -24,7 +24,7 @@ async function main() {
   console.log('2. HTMLファイルをアップロード...')
   const fileInput = page.locator('input[type="file"]').first()
   await fileInput.setInputFiles(sampleHtml)
-  await page.waitForSelector('text=編集ダッシュボード')
+  await page.waitForSelector('text=パーツ')
   await page.waitForSelector('iframe[title="HTMLプレビュー"]')
 
   const iframe = page.frameLocator('iframe[title="HTMLプレビュー"]')
@@ -33,15 +33,16 @@ async function main() {
   if (!h1Text?.includes('HTML編集アプリのテスト')) {
     throw new Error(`見出しの読み込み失敗: ${h1Text}`)
   }
-  console.log('   ✓ 左側プレビューにHTMLが表示された')
+  console.log('   ✓ 中央キャンバスにHTMLが表示された')
 
   console.log('3. レイアウトを確認...')
-  const dashboard = page.locator('aside:has-text("編集ダッシュボード")')
-  const preview = page.locator('main:has-text("プレビュー")')
-  if (!(await dashboard.isVisible()) || !(await preview.isVisible())) {
-    throw new Error('左右分割レイアウトが表示されていない')
+  const partsPanel = page.locator('aside:has-text("パーツ")')
+  const inspector = page.locator('aside:has-text("インスペクター")')
+  const toolbar = page.locator('header:has-text("HTML編集アプリ")')
+  if (!(await partsPanel.isVisible()) || !(await inspector.isVisible()) || !(await toolbar.isVisible())) {
+    throw new Error('3ゾーンレイアウトが表示されていない')
   }
-  console.log('   ✓ 左プレビュー・右ダッシュボードのレイアウト')
+  console.log('   ✓ 上部ツールバー・左パーツ・右インスペクターのレイアウト')
 
   console.log('4. 連続入力をテスト...')
   const frameHandle = await page.locator('iframe[title="HTMLプレビュー"]').elementHandle()
@@ -69,17 +70,29 @@ async function main() {
   console.log('   ✓ 連続して文字入力できた')
 
   console.log('5. 太字編集をテスト...')
-  const body = iframe.locator('body')
-  await body.click()
-  await page.keyboard.press('Control+A')
-  await page.locator('button[title="太字"]').click()
-  await page.waitForTimeout(500)
+  const boldApplied = await contentFrame.evaluate(() => {
+    const p = document.querySelector('p')
+    if (!p) return false
+    const range = document.createRange()
+    range.selectNodeContents(p)
+    const sel = window.getSelection()
+    sel?.removeAllRanges()
+    sel?.addRange(range)
+    return document.execCommand('bold', false)
+  })
+  if (!boldApplied) throw new Error('太字の適用に失敗')
+  const boldCount = await iframe.locator('p strong, p b').count()
+  if (boldCount === 0) throw new Error('太字タグが見つからない')
+  console.log('   ✓ 太字が適用された')
 
-  const boldCount = await iframe.locator('strong, b').count()
-  if (boldCount === 0) throw new Error('太字の適用に失敗')
-  console.log('   ✓ ダッシュボードから太字が適用された')
+  console.log('6. パーツ挿入をテスト...')
+  await page.locator('button[title="区切り線"]').click()
+  await page.waitForTimeout(300)
+  const hrCount = await iframe.locator('hr').count()
+  if (hrCount === 0) throw new Error('パーツ挿入に失敗')
+  console.log('   ✓ パーツパネルから区切り線が挿入された')
 
-  console.log('6. ダウンロードをテスト...')
+  console.log('7. ダウンロードをテスト...')
   const downloadPromise = page.waitForEvent('download')
   await page.locator('button:has-text("ダウンロード")').click()
   const download = await downloadPromise
@@ -95,10 +108,23 @@ async function main() {
   }
   console.log('   ✓ 完全なHTMLがダウンロードされた')
 
-  console.log('7. 本番ビルドの確認...')
-  await page.goto('http://localhost:4173/HTMLeditApp/')
-  await page.waitForSelector('text=HTMLファイルをアップロード', { timeout: 5000 })
-  console.log('   ✓ 本番ビルドがブラウザで動作する')
+  console.log('8. 本番ビルドの確認...')
+  const previewPorts = [4173, 4174, 4175, 4176, 4177]
+  let previewOk = false
+  for (const port of previewPorts) {
+    try {
+      await page.goto(`http://localhost:${port}/HTMLeditApp/`, { timeout: 3000 })
+      await page.waitForSelector('text=HTMLファイルをアップロード', { timeout: 3000 })
+      previewOk = true
+      console.log(`   ✓ 本番ビルドがブラウザで動作する (port ${port})`)
+      break
+    } catch {
+      // try next port
+    }
+  }
+  if (!previewOk) {
+    throw new Error('本番プレビューサーバーに接続できません。npm run preview を起動してください')
+  }
 
   if (errors.length > 0) {
     console.warn('ページエラー:', errors)

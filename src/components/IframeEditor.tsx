@@ -2,22 +2,41 @@ import { useEffect, useRef, useImperativeHandle, forwardRef, useCallback } from 
 import { buildEditorHtml } from '../lib/htmlDocument'
 import {
   describeSelection,
+  describeElementForInspector,
   getSelectedElement,
   updateSelectionHighlight,
+  getSelectionRectInDoc,
+  getSelectedElementRectInDoc,
+  moveSelectedElement,
+  duplicateSelectedElement,
+  removeSelectedElement,
+  insertHtmlAtSelection,
   type SelectionInfo,
+  type ElementInspectorInfo,
 } from '../lib/editorChrome'
+import type { OverlayRect } from '../types/editor'
 import type { ParsedHtmlDocument } from '../types/htmlDocument'
 
-export type { SelectionInfo }
+export type { SelectionInfo, ElementInspectorInfo }
 
 export interface IframeEditorHandle {
   getBodyHtml: () => string
   insertImage: (dataUrl: string) => void
+  insertHtml: (html: string) => void
   execCommand: (command: string, value?: string) => void
   setForeColor: (color: string) => void
   setTextBackgroundColor: (color: string) => void
   setElementBackgroundColor: (color: string) => void
+  setElementStyle: (property: string, value: string) => void
+  setElementAttribute: (attr: string, value: string) => void
   getSelectionInfo: () => SelectionInfo | null
+  getInspectorInfo: () => ElementInspectorInfo | null
+  getSelectionRect: () => OverlayRect | null
+  getSelectedElementRect: () => OverlayRect | null
+  moveSelected: (direction: 'up' | 'down') => void
+  duplicateSelected: () => void
+  removeSelected: () => void
+  getIframeElement: () => HTMLIFrameElement | null
 }
 
 interface IframeEditorProps {
@@ -25,6 +44,7 @@ interface IframeEditorProps {
   htmlDocument: ParsedHtmlDocument
   initialBodyHtml: string
   onSelectionChange?: (info: SelectionInfo | null) => void
+  onRectsChange?: () => void
 }
 
 function withStyleCommand(doc: Document, command: string, value: string) {
@@ -32,31 +52,54 @@ function withStyleCommand(doc: Document, command: string, value: string) {
   doc.execCommand(command, false, value)
 }
 
+function docRectToOverlayRect(
+  iframe: HTMLIFrameElement,
+  rect: DOMRect | null,
+): OverlayRect | null {
+  if (!rect) return null
+  const iframeRect = iframe.getBoundingClientRect()
+  return {
+    top: rect.top - iframeRect.top,
+    left: rect.left - iframeRect.left,
+    width: rect.width,
+    height: rect.height,
+  }
+}
+
 export const IframeEditor = forwardRef<IframeEditorHandle, IframeEditorProps>(
-  function IframeEditor({ loadKey, htmlDocument, initialBodyHtml, onSelectionChange }, ref) {
+  function IframeEditor(
+    { loadKey, htmlDocument, initialBodyHtml, onSelectionChange, onRectsChange },
+    ref,
+  ) {
     const iframeRef = useRef<HTMLIFrameElement>(null)
     const loadedKeyRef = useRef<number | null>(null)
     const onSelectionChangeRef = useRef(onSelectionChange)
+    const onRectsChangeRef = useRef(onRectsChange)
     onSelectionChangeRef.current = onSelectionChange
+    onRectsChangeRef.current = onRectsChange
 
     const getIframeDoc = () => iframeRef.current?.contentDocument ?? null
 
     const notifySelection = useCallback((doc: Document) => {
       updateSelectionHighlight(doc)
       onSelectionChangeRef.current?.(describeSelection(doc))
+      onRectsChangeRef.current?.()
     }, [])
 
     const getBodyHtml = useCallback(() => {
       return iframeRef.current?.contentDocument?.body?.innerHTML ?? ''
     }, [])
 
-    const execCommand = useCallback((command: string, value?: string) => {
-      const doc = getIframeDoc()
-      if (!doc?.body) return
-      doc.body.focus()
-      doc.execCommand(command, false, value)
-      notifySelection(doc)
-    }, [notifySelection])
+    const execCommand = useCallback(
+      (command: string, value?: string) => {
+        const doc = getIframeDoc()
+        if (!doc?.body) return
+        doc.body.focus()
+        doc.execCommand(command, false, value)
+        notifySelection(doc)
+      },
+      [notifySelection],
+    )
 
     const setForeColor = useCallback(
       (color: string) => {
@@ -105,10 +148,89 @@ export const IframeEditor = forwardRef<IframeEditorHandle, IframeEditorProps>(
       [notifySelection],
     )
 
+    const setElementStyle = useCallback(
+      (property: string, value: string) => {
+        const doc = getIframeDoc()
+        if (!doc?.body) return
+        const el = getSelectedElement(doc)
+        if (el && el !== doc.body) {
+          ;(el.style as unknown as Record<string, string>)[property] = value
+        }
+        notifySelection(doc)
+      },
+      [notifySelection],
+    )
+
+    const setElementAttribute = useCallback(
+      (attr: string, value: string) => {
+        const doc = getIframeDoc()
+        if (!doc?.body) return
+        const el = getSelectedElement(doc)
+        if (el && el !== doc.body) {
+          el.setAttribute(attr, value)
+        }
+        notifySelection(doc)
+      },
+      [notifySelection],
+    )
+
     const getSelectionInfo = useCallback(() => {
       const doc = getIframeDoc()
       return doc ? describeSelection(doc) : null
     }, [])
+
+    const getInspectorInfo = useCallback(() => {
+      const doc = getIframeDoc()
+      return doc ? describeElementForInspector(doc) : null
+    }, [])
+
+    const getSelectionRect = useCallback((): OverlayRect | null => {
+      const iframe = iframeRef.current
+      const doc = getIframeDoc()
+      if (!iframe || !doc) return null
+      return docRectToOverlayRect(iframe, getSelectionRectInDoc(doc))
+    }, [])
+
+    const getSelectedElementRect = useCallback((): OverlayRect | null => {
+      const iframe = iframeRef.current
+      const doc = getIframeDoc()
+      if (!iframe || !doc) return null
+      return docRectToOverlayRect(iframe, getSelectedElementRectInDoc(doc))
+    }, [])
+
+    const moveSelected = useCallback(
+      (direction: 'up' | 'down') => {
+        const doc = getIframeDoc()
+        if (!doc) return
+        moveSelectedElement(doc, direction)
+        notifySelection(doc)
+      },
+      [notifySelection],
+    )
+
+    const duplicateSelected = useCallback(() => {
+      const doc = getIframeDoc()
+      if (!doc) return
+      duplicateSelectedElement(doc)
+      notifySelection(doc)
+    }, [notifySelection])
+
+    const removeSelected = useCallback(() => {
+      const doc = getIframeDoc()
+      if (!doc) return
+      removeSelectedElement(doc)
+      notifySelection(doc)
+    }, [notifySelection])
+
+    const insertHtml = useCallback(
+      (html: string) => {
+        const doc = getIframeDoc()
+        if (!doc) return
+        insertHtmlAtSelection(doc, html)
+        notifySelection(doc)
+      },
+      [notifySelection],
+    )
 
     const insertImage = useCallback(
       (dataUrl: string) => {
@@ -143,20 +265,39 @@ export const IframeEditor = forwardRef<IframeEditorHandle, IframeEditorProps>(
       () => ({
         getBodyHtml,
         insertImage,
+        insertHtml,
         execCommand,
         setForeColor,
         setTextBackgroundColor,
         setElementBackgroundColor,
+        setElementStyle,
+        setElementAttribute,
         getSelectionInfo,
+        getInspectorInfo,
+        getSelectionRect,
+        getSelectedElementRect,
+        moveSelected,
+        duplicateSelected,
+        removeSelected,
+        getIframeElement: () => iframeRef.current,
       }),
       [
         getBodyHtml,
         insertImage,
+        insertHtml,
         execCommand,
         setForeColor,
         setTextBackgroundColor,
         setElementBackgroundColor,
+        setElementStyle,
+        setElementAttribute,
         getSelectionInfo,
+        getInspectorInfo,
+        getSelectionRect,
+        getSelectedElementRect,
+        moveSelected,
+        duplicateSelected,
+        removeSelected,
       ],
     )
 
@@ -173,9 +314,13 @@ export const IframeEditor = forwardRef<IframeEditorHandle, IframeEditorProps>(
         if (!doc?.body) return
 
         const handleSelectionChange = () => notifySelection(doc)
+        const handleScroll = () => onRectsChangeRef.current?.()
+
         doc.addEventListener('selectionchange', handleSelectionChange)
         doc.addEventListener('mouseup', handleSelectionChange)
         doc.addEventListener('keyup', handleSelectionChange)
+        doc.addEventListener('scroll', handleScroll, true)
+        window.addEventListener('resize', handleScroll)
         notifySelection(doc)
 
         iframe.dataset.selectionCleanup = 'true'
@@ -183,6 +328,8 @@ export const IframeEditor = forwardRef<IframeEditorHandle, IframeEditorProps>(
           doc.removeEventListener('selectionchange', handleSelectionChange)
           doc.removeEventListener('mouseup', handleSelectionChange)
           doc.removeEventListener('keyup', handleSelectionChange)
+          doc.removeEventListener('scroll', handleScroll, true)
+          window.removeEventListener('resize', handleScroll)
         }
       }
 
