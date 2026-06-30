@@ -4,6 +4,7 @@ import type { IframeEditorHandle, SelectionInfo, ElementInspectorInfo } from './
 interface InspectorProps {
   editorRef: React.RefObject<IframeEditorHandle | null>
   selection: SelectionInfo | null
+  onClose: () => void
 }
 
 function Field({
@@ -21,7 +22,23 @@ function Field({
   )
 }
 
-export function Inspector({ editorRef, selection }: InspectorProps) {
+function Header({ title, onClose }: { title: string; onClose: () => void }) {
+  return (
+    <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</h2>
+      <button
+        type="button"
+        title="閉じる"
+        onClick={onClose}
+        className="flex h-6 w-6 items-center justify-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+      >
+        ✕
+      </button>
+    </div>
+  )
+}
+
+export function Inspector({ editorRef, selection, onClose }: InspectorProps) {
   const [info, setInfo] = useState<ElementInspectorInfo | null>(null)
 
   useEffect(() => {
@@ -32,14 +49,10 @@ export function Inspector({ editorRef, selection }: InspectorProps) {
     setInfo(editorRef.current?.getInspectorInfo() ?? null)
   }, [selection, editorRef])
 
-  if (!selection) {
+  if (!selection || selection.tagName === 'body') {
     return (
       <aside className="flex h-full w-64 shrink-0 flex-col border-l border-slate-200 bg-white">
-        <div className="border-b border-slate-200 px-4 py-3">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            インスペクター
-          </h2>
-        </div>
+        <Header title="詳細設定" onClose={onClose} />
         <p className="p-4 text-sm text-slate-400">要素をクリックして選択してください</p>
       </aside>
     )
@@ -48,16 +61,12 @@ export function Inspector({ editorRef, selection }: InspectorProps) {
   if (!selection.isCollapsed) {
     return (
       <aside className="flex h-full w-64 shrink-0 flex-col border-l border-slate-200 bg-white">
-        <div className="border-b border-slate-200 px-4 py-3">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            インスペクター
-          </h2>
-        </div>
+        <Header title="詳細設定" onClose={onClose} />
         <div className="p-4">
           <p className="text-xs font-medium text-blue-600">選択テキスト</p>
           <p className="mt-1 text-sm text-slate-700">「{selection.preview}」</p>
           <p className="mt-3 text-[11px] text-slate-400">
-            フローティングツールバーで書式を変更できます
+            選択範囲のツールバーで書式を変更できます
           </p>
         </div>
       </aside>
@@ -66,11 +75,9 @@ export function Inspector({ editorRef, selection }: InspectorProps) {
 
   return (
     <aside className="flex h-full w-64 shrink-0 flex-col border-l border-slate-200 bg-white">
-      <div className="border-b border-slate-200 px-4 py-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-          インスペクター
-        </h2>
-        <p className="mt-1 text-sm font-medium text-slate-800">{selection.label}</p>
+      <Header title="詳細設定" onClose={onClose} />
+      <div className="border-b border-slate-200 px-4 py-2">
+        <p className="text-sm font-medium text-slate-800">{selection.label}</p>
         {selection.preview && (
           <p className="truncate text-xs text-slate-400">「{selection.preview}」</p>
         )}
@@ -90,7 +97,7 @@ export function Inspector({ editorRef, selection }: InspectorProps) {
           <Field label="背景色">
             <input
               type="color"
-              value={info.backgroundColor === '#ffffff' ? '#ffffff' : info.backgroundColor}
+              value={info.backgroundColor}
               onChange={(e) => editorRef.current?.setElementBackgroundColor(e.target.value)}
               className="h-8 w-full cursor-pointer rounded border border-slate-200"
             />
@@ -101,7 +108,7 @@ export function Inspector({ editorRef, selection }: InspectorProps) {
               type="text"
               defaultValue={info.padding}
               placeholder="例: 16px"
-              onBlur={(e) => editorRef.current?.setElementStyle('padding', e.target.value)}
+              onChange={(e) => editorRef.current?.setElementStyle('padding', e.target.value)}
               className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
             />
           </Field>
@@ -111,7 +118,7 @@ export function Inspector({ editorRef, selection }: InspectorProps) {
               type="text"
               defaultValue={info.margin}
               placeholder="例: 16px 0"
-              onBlur={(e) => editorRef.current?.setElementStyle('margin', e.target.value)}
+              onChange={(e) => editorRef.current?.setElementStyle('margin', e.target.value)}
               className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
             />
           </Field>
@@ -121,7 +128,7 @@ export function Inspector({ editorRef, selection }: InspectorProps) {
               <input
                 type="url"
                 defaultValue={info.href}
-                onBlur={(e) => editorRef.current?.setElementAttribute('href', e.target.value)}
+                onChange={(e) => editorRef.current?.setElementAttribute('href', e.target.value)}
                 className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
               />
             </Field>
@@ -132,7 +139,7 @@ export function Inspector({ editorRef, selection }: InspectorProps) {
               <input
                 type="text"
                 defaultValue={info.alt}
-                onBlur={(e) => editorRef.current?.setElementAttribute('alt', e.target.value)}
+                onChange={(e) => editorRef.current?.setElementAttribute('alt', e.target.value)}
                 className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
               />
             </Field>

@@ -13,6 +13,10 @@ import {
   insertHtmlAtSelection,
   goToSlide as goToSlideInDoc,
   getSlideElements,
+  getElementLabel,
+  getSelectableElementAtPoint,
+  getMovableSiblingRectsInDoc,
+  moveSelectedToIndex as moveSelectedToIndexInDoc,
   type SelectionInfo,
   type ElementInspectorInfo,
 } from '../lib/editorChrome'
@@ -20,6 +24,16 @@ import type { OverlayRect } from '../types/editor'
 import type { ParsedHtmlDocument } from '../types/htmlDocument'
 
 export type { SelectionInfo, ElementInspectorInfo }
+
+export interface HoverInfo {
+  label: string
+  rect: OverlayRect
+}
+
+export interface SiblingRects {
+  rects: OverlayRect[]
+  currentIndex: number
+}
 
 export interface IframeEditorHandle {
   getBodyHtml: () => string
@@ -42,6 +56,8 @@ export interface IframeEditorHandle {
   getSlideCount: () => number
   goToSlide: (index: number) => void
   getActiveSlideIndex: () => number
+  getSiblingRects: () => SiblingRects | null
+  moveSelectedToIndex: (index: number) => void
 }
 
 interface IframeEditorProps {
@@ -50,6 +66,7 @@ interface IframeEditorProps {
   initialBodyHtml: string
   onSelectionChange?: (info: SelectionInfo | null) => void
   onRectsChange?: () => void
+  onHoverChange?: (info: HoverInfo | null) => void
 }
 
 function withStyleCommand(doc: Document, command: string, value: string) {
@@ -73,15 +90,17 @@ function docRectToOverlayRect(
 
 export const IframeEditor = forwardRef<IframeEditorHandle, IframeEditorProps>(
   function IframeEditor(
-    { loadKey, htmlDocument, initialBodyHtml, onSelectionChange, onRectsChange },
+    { loadKey, htmlDocument, initialBodyHtml, onSelectionChange, onRectsChange, onHoverChange },
     ref,
   ) {
     const iframeRef = useRef<HTMLIFrameElement>(null)
     const loadedKeyRef = useRef<number | null>(null)
     const onSelectionChangeRef = useRef(onSelectionChange)
     const onRectsChangeRef = useRef(onRectsChange)
+    const onHoverChangeRef = useRef(onHoverChange)
     onSelectionChangeRef.current = onSelectionChange
     onRectsChangeRef.current = onRectsChange
+    onHoverChangeRef.current = onHoverChange
 
     const getIframeDoc = () => iframeRef.current?.contentDocument ?? null
 
@@ -203,6 +222,29 @@ export const IframeEditor = forwardRef<IframeEditorHandle, IframeEditorProps>(
       return docRectToOverlayRect(iframe, getSelectedElementRectInDoc(doc))
     }, [])
 
+    const getSiblingRects = useCallback((): SiblingRects | null => {
+      const iframe = iframeRef.current
+      const doc = getIframeDoc()
+      if (!iframe || !doc) return null
+      const result = getMovableSiblingRectsInDoc(doc)
+      if (!result) return null
+      const rects = result.rects
+        .map((rect) => docRectToOverlayRect(iframe, rect))
+        .filter((rect): rect is OverlayRect => rect !== null)
+      if (rects.length !== result.rects.length) return null
+      return { rects, currentIndex: result.currentIndex }
+    }, [])
+
+    const moveSelectedToIndex = useCallback(
+      (index: number) => {
+        const doc = getIframeDoc()
+        if (!doc) return
+        moveSelectedToIndexInDoc(doc, index)
+        notifySelection(doc)
+      },
+      [notifySelection],
+    )
+
     const moveSelected = useCallback(
       (direction: 'up' | 'down') => {
         const doc = getIframeDoc()
@@ -313,6 +355,8 @@ export const IframeEditor = forwardRef<IframeEditorHandle, IframeEditorProps>(
         getSlideCount,
         goToSlide,
         getActiveSlideIndex,
+        getSiblingRects,
+        moveSelectedToIndex,
       }),
       [
         getBodyHtml,
@@ -334,6 +378,8 @@ export const IframeEditor = forwardRef<IframeEditorHandle, IframeEditorProps>(
         getSlideCount,
         goToSlide,
         getActiveSlideIndex,
+        getSiblingRects,
+        moveSelectedToIndex,
       ],
     )
 
@@ -352,19 +398,53 @@ export const IframeEditor = forwardRef<IframeEditorHandle, IframeEditorProps>(
         const handleSelectionChange = () => notifySelection(doc)
         const handleScroll = () => onRectsChangeRef.current?.()
 
+        let hoverFrame = 0
+        const handleMouseMove = (e: MouseEvent) => {
+          if (hoverFrame) return
+          hoverFrame = requestAnimationFrame(() => {
+            hoverFrame = 0
+            const cb = onHoverChangeRef.current
+            if (!cb) return
+            const el = getSelectableElementAtPoint(doc, e.clientX, e.clientY)
+            const frame = iframeRef.current
+            if (!el || !frame) {
+              cb(null)
+              return
+            }
+            const rect = docRectToOverlayRect(frame, el.getBoundingClientRect())
+            if (!rect) {
+              cb(null)
+              return
+            }
+            cb({ label: getElementLabel(el), rect })
+          })
+        }
+        const handleMouseLeave = () => {
+          if (hoverFrame) {
+            cancelAnimationFrame(hoverFrame)
+            hoverFrame = 0
+          }
+          onHoverChangeRef.current?.(null)
+        }
+
         doc.addEventListener('selectionchange', handleSelectionChange)
         doc.addEventListener('mouseup', handleSelectionChange)
         doc.addEventListener('keyup', handleSelectionChange)
         doc.addEventListener('scroll', handleScroll, true)
+        doc.addEventListener('mousemove', handleMouseMove)
+        doc.addEventListener('mouseleave', handleMouseLeave)
         window.addEventListener('resize', handleScroll)
         notifySelection(doc)
 
         iframe.dataset.selectionCleanup = 'true'
         ;(iframe as HTMLIFrameElement & { _cleanup?: () => void })._cleanup = () => {
+          if (hoverFrame) cancelAnimationFrame(hoverFrame)
           doc.removeEventListener('selectionchange', handleSelectionChange)
           doc.removeEventListener('mouseup', handleSelectionChange)
           doc.removeEventListener('keyup', handleSelectionChange)
           doc.removeEventListener('scroll', handleScroll, true)
+          doc.removeEventListener('mousemove', handleMouseMove)
+          doc.removeEventListener('mouseleave', handleMouseLeave)
           window.removeEventListener('resize', handleScroll)
         }
       }

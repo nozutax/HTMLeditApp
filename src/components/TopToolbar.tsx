@@ -10,6 +10,8 @@ interface TopToolbarProps {
   format: DocumentFormat
   slideCount?: number
   deviceMode: DeviceMode
+  partsOpen: boolean
+  onTogglePerts: () => void
   onDeviceModeChange: (mode: DeviceMode) => void
   onDownload: () => void
   onOpenNew: () => void
@@ -54,6 +56,8 @@ export function TopToolbar({
   format,
   slideCount,
   deviceMode,
+  partsOpen,
+  onTogglePerts,
   onDeviceModeChange,
   onDownload,
   onOpenNew,
@@ -116,6 +120,21 @@ export function TopToolbar({
       </div>
 
       <div className="flex flex-wrap items-center gap-1 px-3 py-1.5">
+        <button
+          type="button"
+          title="パーツの表示を切り替え"
+          onClick={onTogglePerts}
+          className={`flex h-8 items-center gap-1 rounded-md px-2.5 text-xs font-medium transition-colors ${
+            partsOpen
+              ? 'bg-blue-100 text-blue-700'
+              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+          }`}
+        >
+          ＋ パーツ
+        </button>
+
+        <ToolDivider />
+
         <ToolButton title="元に戻す" onClick={() => run('undo')}>
           ↩
         </ToolButton>

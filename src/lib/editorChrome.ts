@@ -62,17 +62,37 @@ const BLOCK_TAGS = new Set([
   'section', 'div', 'blockquote', 'hr', 'img', 'button', 'a',
 ])
 
+/** クリック対象として意味のあるブロック/要素（span などインラインは含めない）。 */
+const SELECTABLE_SELECTOR =
+  'button, a, input, p, h1, h2, h3, h4, h5, h6, li, ul, ol, table, img, section, div, hr, blockquote'
+
 function getElementFromNode(node: Node | null, body: HTMLElement): HTMLElement | null {
   if (!node) return null
-  let el: HTMLElement | null =
+  const el: HTMLElement | null =
     node.nodeType === Node.TEXT_NODE ? node.parentElement : (node as HTMLElement)
   if (!el || el === body) return body
 
-  const target = el.closest(
-    'button, a, input, p, h1, h2, h3, h4, h5, h6, li, ul, ol, table, img, section, div, span, hr, blockquote',
-  ) as HTMLElement | null
+  const target = el.closest(SELECTABLE_SELECTOR) as HTMLElement | null
 
   return target && target !== body ? target : el
+}
+
+export function getElementLabel(el: HTMLElement): string {
+  const tagName = el.tagName.toLowerCase()
+  return TAG_LABELS[tagName] ?? tagName
+}
+
+export function getSelectableElementAtPoint(
+  doc: Document,
+  x: number,
+  y: number,
+): HTMLElement | null {
+  const body = doc.body
+  if (!body) return null
+  const node = doc.elementFromPoint(x, y)
+  if (!node) return null
+  const el = getElementFromNode(node, body)
+  return el && el !== body ? el : null
 }
 
 export function describeSelection(doc: Document): SelectionInfo | null {
@@ -242,6 +262,63 @@ export function removeSelectedElement(doc: Document): boolean {
   if (!block || block === body) return false
 
   block.remove()
+  return true
+}
+
+/** ドラッグ並べ替えの対象：選択ブロックの兄弟要素の矩形と現在位置。 */
+export function getMovableSiblingRectsInDoc(
+  doc: Document,
+): { rects: DOMRect[]; currentIndex: number } | null {
+  const body = doc.body
+  if (!body) return null
+
+  const el = getSelectedElement(doc)
+  if (!el) return null
+
+  const block = findMovableBlock(el, body)
+  if (!block) return null
+
+  const parent = block.parentElement
+  if (!parent) return null
+
+  const children = Array.from(parent.children) as HTMLElement[]
+  if (children.length < 2) return null
+
+  const rects = children.map((child) => child.getBoundingClientRect())
+  const currentIndex = children.indexOf(block)
+  if (currentIndex < 0) return null
+
+  return { rects, currentIndex }
+}
+
+export function moveSelectedToIndex(doc: Document, index: number): boolean {
+  const body = doc.body
+  if (!body) return false
+
+  const el = getSelectedElement(doc)
+  if (!el) return false
+
+  const block = findMovableBlock(el, body)
+  if (!block) return false
+
+  const parent = block.parentElement
+  if (!parent) return false
+
+  const children = Array.from(parent.children) as HTMLElement[]
+  const from = children.indexOf(block)
+  const to = Math.max(0, Math.min(index, children.length - 1))
+  if (from < 0 || from === to) return false
+
+  const reference = children[to]
+  if (!reference) return false
+
+  if (to < from) {
+    parent.insertBefore(block, reference)
+  } else {
+    parent.insertBefore(block, reference.nextSibling)
+  }
+
+  selectElement(doc, block)
   return true
 }
 

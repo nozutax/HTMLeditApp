@@ -10,9 +10,10 @@ import type { IframeEditorHandle } from './IframeEditor'
 interface PartsPanelProps {
   editorRef: React.RefObject<IframeEditorHandle | null>
   format: DocumentFormat
+  onClose: () => void
 }
 
-export function PartsPanel({ editorRef, format }: PartsPanelProps) {
+export function PartsPanel({ editorRef, format, onClose }: PartsPanelProps) {
   const handleInsert = (html: string) => {
     editorRef.current?.insertHtml(html)
   }
@@ -29,9 +30,19 @@ export function PartsPanel({ editorRef, format }: PartsPanelProps) {
   return (
     <aside className="flex h-full w-56 shrink-0 flex-col border-r border-slate-200 bg-white">
       <div className="border-b border-slate-200 px-4 py-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-          パーツ
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            パーツ
+          </h2>
+          <button
+            type="button"
+            title="パーツを閉じる"
+            onClick={onClose}
+            className="flex h-6 w-6 items-center justify-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+          >
+            ✕
+          </button>
+        </div>
         <p className="mt-0.5 text-[11px] text-slate-400">
           {format === 'bundler-slide' ? 'スライド用パーツを挿入' : 'クリックで挿入'}
         </p>

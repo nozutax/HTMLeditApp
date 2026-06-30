@@ -4,14 +4,22 @@ import { TopToolbar } from './components/TopToolbar'
 import { PartsPanel } from './components/PartsPanel'
 import { DeviceFrame } from './components/DeviceFrame'
 import { SlideNavigator } from './components/SlideNavigator'
-import { IframeEditor, type IframeEditorHandle, type SelectionInfo } from './components/IframeEditor'
+import {
+  IframeEditor,
+  type IframeEditorHandle,
+  type SelectionInfo,
+  type HoverInfo,
+} from './components/IframeEditor'
 import { FloatingToolbar } from './components/FloatingToolbar'
 import { ElementOverlay } from './components/ElementOverlay'
+import { HoverOverlay } from './components/HoverOverlay'
 import { Inspector } from './components/Inspector'
 import { Toast } from './components/Toast'
 import { downloadHtml, parseDocument, readHtmlFile } from './lib/htmlDocument'
 import type { ParsedHtmlDocument } from './types/htmlDocument'
 import type { DeviceMode, OverlayRect } from './types/editor'
+
+const HINT_STORAGE_KEY = 'html-editor-hint-dismissed'
 
 function App() {
   const [document, setDocument] = useState<ParsedHtmlDocument | null>(null)
@@ -24,8 +32,20 @@ function App() {
   const [activeSlide, setActiveSlide] = useState(0)
   const [selectionRect, setSelectionRect] = useState<OverlayRect | null>(null)
   const [elementRect, setElementRect] = useState<OverlayRect | null>(null)
+  const [hover, setHover] = useState<HoverInfo | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const [partsOpen, setPartsOpen] = useState(false)
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const [hintDismissed, setHintDismissed] = useState(() => {
+    try {
+      return localStorage.getItem(HINT_STORAGE_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
 
   const editorRef = useRef<IframeEditorHandle>(null)
+  const overlayLayerRef = useRef<HTMLDivElement>(null)
 
   const refreshOverlayRects = useCallback(() => {
     setSelectionRect(editorRef.current?.getSelectionRect() ?? null)
@@ -38,6 +58,7 @@ function App() {
     setError(null)
     setSelection(null)
     setActiveSlide(0)
+    setDetailsOpen(false)
     setDeviceMode(doc.format === 'bundler-slide' ? 'slide' : 'desktop')
   }, [])
 
@@ -95,6 +116,15 @@ function App() {
     refreshOverlayRects()
   }, [refreshOverlayRects])
 
+  const dismissHint = () => {
+    setHintDismissed(true)
+    try {
+      localStorage.setItem(HINT_STORAGE_KEY, '1')
+    } catch {
+      // ignore storage errors
+    }
+  }
+
   useEffect(() => {
     refreshOverlayRects()
   }, [deviceMode, refreshOverlayRects])
@@ -116,6 +146,8 @@ function App() {
             format={document.format}
             slideCount={document.slideCount}
             deviceMode={deviceMode}
+            partsOpen={partsOpen}
+            onTogglePerts={() => setPartsOpen((v) => !v)}
             onDeviceModeChange={setDeviceMode}
             onDownload={handleDownload}
             onOpenNew={handleOpenNew}
@@ -132,7 +164,13 @@ function App() {
           )}
 
           <div className="flex min-h-0 flex-1">
-            <PartsPanel editorRef={editorRef} format={document.format} />
+            {partsOpen && (
+              <PartsPanel
+                editorRef={editorRef}
+                format={document.format}
+                onClose={() => setPartsOpen(false)}
+              />
+            )}
 
             <div className="relative flex min-w-0 flex-1 flex-col">
               <DeviceFrame deviceMode={deviceMode}>
@@ -145,22 +183,49 @@ function App() {
                     initialBodyHtml={document.bodyHtml}
                     onSelectionChange={handleSelectionChange}
                     onRectsChange={handleRectsChange}
+                    onHoverChange={setHover}
                   />
-                  <FloatingToolbar
-                    editorRef={editorRef}
-                    selection={selection}
-                    selectionRect={selectionRect}
-                  />
-                  <ElementOverlay
-                    editorRef={editorRef}
-                    selection={selection}
-                    elementRect={elementRect}
-                  />
+
+                  <div ref={overlayLayerRef} className="pointer-events-none absolute inset-0">
+                    <HoverOverlay hover={hover} suppressed={isDragging} />
+                    <FloatingToolbar
+                      editorRef={editorRef}
+                      selection={selection}
+                      selectionRect={selectionRect}
+                    />
+                    <ElementOverlay
+                      editorRef={editorRef}
+                      selection={selection}
+                      elementRect={elementRect}
+                      layerRef={overlayLayerRef}
+                      onOpenDetails={() => setDetailsOpen(true)}
+                      onDraggingChange={setIsDragging}
+                    />
+                  </div>
+
+                  {!hintDismissed && (
+                    <div className="pointer-events-auto absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-full bg-slate-800/90 px-4 py-2 text-xs text-white shadow-lg">
+                      <span>要素をクリックで選択・編集／ハンドル⠿をドラッグで並べ替え</span>
+                      <button
+                        type="button"
+                        onClick={dismissHint}
+                        className="rounded-full bg-white/20 px-2 py-0.5 hover:bg-white/30"
+                      >
+                        閉じる
+                      </button>
+                    </div>
+                  )}
                 </div>
               </DeviceFrame>
             </div>
 
-            <Inspector editorRef={editorRef} selection={selection} />
+            {detailsOpen && (
+              <Inspector
+                editorRef={editorRef}
+                selection={selection}
+                onClose={() => setDetailsOpen(false)}
+              />
+            )}
           </div>
         </>
       )}

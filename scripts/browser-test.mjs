@@ -35,14 +35,18 @@ async function main() {
   }
   console.log('   ✓ 中央キャンバスにHTMLが表示された')
 
-  console.log('3. レイアウトを確認...')
-  const partsPanel = page.locator('aside:has-text("パーツ")')
-  const inspector = page.locator('aside:has-text("インスペクター")')
+  console.log('3. レイアウトとパーツドロワーを確認...')
   const toolbar = page.locator('header:has-text("HTML編集アプリ")')
-  if (!(await partsPanel.isVisible()) || !(await inspector.isVisible()) || !(await toolbar.isVisible())) {
-    throw new Error('3ゾーンレイアウトが表示されていない')
+  if (!(await toolbar.isVisible())) {
+    throw new Error('上部ツールバーが表示されていない')
   }
-  console.log('   ✓ 上部ツールバー・左パーツ・右インスペクターのレイアウト')
+  const partsPanel = page.locator('aside:has-text("クリックで挿入")')
+  if (await partsPanel.isVisible()) {
+    throw new Error('パーツパネルは初期状態で閉じているはず')
+  }
+  await page.locator('button:has-text("パーツ")').click()
+  await partsPanel.waitFor({ state: 'visible', timeout: 3000 })
+  console.log('   ✓ 上部ツールバーとパーツドロワーの開閉')
 
   console.log('4. 連続入力をテスト...')
   const frameHandle = await page.locator('iframe[title="HTMLプレビュー"]').elementHandle()
